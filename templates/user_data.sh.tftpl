@@ -1,0 +1,41 @@
+#!/bin/bash
+# ----------------------------------------------------------------------
+# EC2 初期化スクリプト (Amazon Linux 2023)
+# nginx をインストールし、プレースホルダーページを配信します。
+# 実際のアプリケーション (WordPress / PHP / Node.js 等) は
+# このスクリプトを置き換えるか、AMI を焼いて利用してください。
+# ----------------------------------------------------------------------
+set -euxo pipefail
+
+dnf update -y
+dnf install -y nginx
+
+TOKEN=$(curl -sS -X PUT "http://169.254.169.254/latest/api/token" \
+  -H "X-aws-ec2-metadata-token-ttl-seconds: 60")
+INSTANCE_ID=$(curl -sS -H "X-aws-ec2-metadata-token: $TOKEN" \
+  http://169.254.169.254/latest/meta-data/instance-id)
+AZ=$(curl -sS -H "X-aws-ec2-metadata-token: $TOKEN" \
+  http://169.254.169.254/latest/meta-data/placement/availability-zone)
+
+cat > /usr/share/nginx/html/index.html <<EOF
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>${project_name} (${environment})</title>
+</head>
+<body>
+  <h1>${project_name} - ${environment}</h1>
+  <p>Instance: $${INSTANCE_ID}</p>
+  <p>AZ: $${AZ}</p>
+  <p>This is a placeholder page served by nginx.</p>
+</body>
+</html>
+EOF
+
+# ヘルスチェック用エンドポイント
+mkdir -p /usr/share/nginx/html/health
+echo "ok" > /usr/share/nginx/html/health/index.html
+
+systemctl enable nginx
+systemctl start nginx
